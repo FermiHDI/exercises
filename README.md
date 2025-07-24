@@ -17,10 +17,22 @@ Your solution must include a Dockerfile to build containers to run your solution
 Your solution should be well documented both in a readme file and inline to such extent that any average developer can follow along with what and why you have done.  Your inline documentation should also enable type hinting.  Your solution does not need to have extensive error correction or catching.
 
 ## Incoming Socket and Packet Format
-* TCP Port 9000
-* Packet Format (All values are encoded with Big Endian): 
 
-    | Total Length Value | A | B | C | D | E |
-    | --- | --- | --- | --- | --- | --- |
-    | uint32 | uint32 | uint16 | fp32 | int8 | ASCII (256 Byte Zero Padded w/ Trailing 0x20) |
+TCP Port 9000
+
+#### Wire Protocol Format (All values are encoded with Big Endian):
+
+Packet Format
+
+| Total Length Value (TLV) | Record A  | ...               | Record N  |
+| :----------------------: | :-------: | :---------------: | :-------: |
+| uint32                   | 267 Bytes | 267 Bytes * (N-2) | 267 Bytes |
+
+** TLV is the packets total length including this element, this should be 4 + (267 * number of records included in the payload)
+
+Record Format
+
+| A      | B      | C     | D     | E                                             |
+| :----: | :----: | :---: | :---: | :-------------------------------------------- |
+| uint32 | uint16 | fp32  | int8  | ASCII (256 Byte Zero Padded w/ Trailing 0x20) |
 

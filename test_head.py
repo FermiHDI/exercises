@@ -28,6 +28,7 @@ __status__ = "Proof of Concept (POC)"
 import multiprocessing
 import random
 import socket
+import struct
 import sys
 import typing
 
@@ -38,13 +39,13 @@ class TestRecord(typing.TypedDict):
     C: bytes  # float
     D: bytes  # int8_t
     E: bytes  # char[256]
-    
+
 
 class TestHead:
     data: typing.List[TestRecord]
     target_ip: str    
     number_of_records: int
-        
+
     def __init__(self, target_ip: str, number_of_records: int = 1000000):
         """
         Initialize the TestHead object.
@@ -65,7 +66,7 @@ class TestHead:
         """
         self.target_ip = target_ip
         self.number_of_records = number_of_records
-        
+
     def start(self):
         """
         Start the test data generation and sending process.
@@ -83,7 +84,7 @@ class TestHead:
         """
         self.generate_test_data(self.number_of_records)
         self.send_data()
-              
+
     def generate_test_data(self, number_of_records: int = 1000000):
         """
         Generate test data for the TestHead object.
@@ -105,21 +106,23 @@ class TestHead:
         self.data = []
         number_list = random.sample(range(1, 256), 5)
         word_list = ['apple', 'banana', 'cherry', 'dates', 'elderberry']
-        
+
         for _ in range(number_of_records):
             text = random.choice(word_list) + " " + random.choice(word_list)
             text_bytes = text.encode('ascii')
             text_bytes_ = bytearray([0x20]*256)
             text_bytes_[:len(text_bytes)] = text_bytes
-            
+
             self.data.append({
                 'A': random.choice(number_list).to_bytes(4, 'big'),
                 'B': random.randint(0, 65535).to_bytes(2, 'big'),
-                'C': random.uniform(1.18*10**-38, 3.40*10**38),
-                'D': random.randint(-128, 127).to_bytes(1, 'big'),
+                'C': struct.pack('!f',random.uniform(1.18*10**-38, 3.40*10**38)),
+                'D': random.randint(-128, 127).to_bytes(1, 'big', signed=True),
                 'E': bytes(text_bytes_)
             })
-    
+
+        print(f"Generated {len(self.data)} test records.")
+
     def send_data(self):
         """
         Send the generated test data to the target server.
@@ -157,41 +160,49 @@ class TestHead:
         packet[:4] = (1072).to_bytes(4, 'big')
         tlv: int = 4
         records_in_packet = 0
-        
+        packets_sent = 0
+        records_sent = 0
+
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.connect((self.target_ip, 9000))
-        
+
         try:
             for record in self.data:
                 packet[tlv:tlv+4] = record['A']
                 tlv += 4
                 packet[tlv:tlv+2] = record['B']
                 tlv += 2
-                packet[tlv:tlv+4] = record['C'].to_bytes(4, 'big')
+                packet[tlv:tlv+4] = record['C']
                 tlv += 4
                 packet[tlv:tlv+1] = record['D']
                 tlv += 1
                 packet[tlv:tlv+256] = record['E']
                 tlv += 256
                 records_in_packet += 1
-                
+
                 if records_in_packet == 4:
                     self.socket.sendall(packet[:tlv])
+                    packets_sent += 1
                     records_in_packet = 0
                     tlv = 4
-            
+
+                records_sent += 1
+
             packet[tlv:tlv+267] = bytearray([0]*267)
             tlv += 267
+            packet[0:4] = tlv.to_bytes(4, 'big')
             self.socket.sendall(packet[:tlv])
-            
+            records_sent += 1
+            packets_sent += 1
+
+            print(f"Sent {records_sent} records in {packets_sent} packets to {self.target_ip}; Last packet sent had {records_in_packet + 1} records")
+
         except Exception as e:
             print(f"Error sending packet: {str(e)}")
-            
+
         finally:
             self.socket.close()
             print("Socket closed")
-    
-        print(f"Sent {len(self.data)} records to {self.target_ip}")
 
 
 if __name__ == "__main__":
@@ -202,10 +213,20 @@ if __name__ == "__main__":
         sys.exit(1)
         
     target_ip = arg_list[0]
-    number_of_records = 1000000 if len(arg_list) != 2 else int(arg_list[1])
-    test_head = TestHead(target_ip)
+    number_of_records = int(arg_list[1]) if len(arg_list) == 2 else 1000000
+    print(f"Generating test data for {number_of_records} records")
+    test_head = TestHead(target_ip, number_of_records)
+    
+    workers = []
+    
+    print(f"Starting 10 processes to send packets to {target_ip}")
     
     for _ in range(10):
-        multiprocessing.Process(target=test_head.start).start()
+        p = multiprocessing.Process(target=test_head.start)
+        p.start()
+        workers.append(p)
+        
+    for worker in workers:
+        worker.join()  # Wait for all processes to finish
         
     print("Finished sending packets on all processes")
