@@ -3,7 +3,9 @@
 </p>
 
 # FermiHDI Python Socket Programming Exercise
+
 ## Challenge
+
 Write a program using Python 3.12+ that uses the Socket library to receive connections from test_head.py.  test_head.py will send a number of records using the wire protocol bellow on TCP Port 9000 using a number of connections.  The application per connection should decode each packet and load all records into a Pandas DataFrame.  The DataFrame should be aggregated by grouping on columns A and E, simple average of column B, the sum of column C and the minimum of column D.  The aggregated DataFrame should then be printed out to the console.
 
 This means that your application should generate and print a DataFrame for each connections established by test_head.py
@@ -20,7 +22,7 @@ Your solution should be well documented both in a readme file and inline to such
 
 TCP Port 9000
 
-#### Wire Protocol Format (All values are encoded with Big Endian):
+### Wire Protocol Format (All values are encoded with Big Endian):
 
 Packet Format
 
@@ -35,4 +37,3 @@ Record Format
 | A      | B      | C     | D     | E                                             |
 | :----: | :----: | :---: | :---: | :-------------------------------------------- |
 | uint32 | uint16 | fp32  | int8  | ASCII (256 Byte Zero Padded w/ Trailing 0x20) |
-
